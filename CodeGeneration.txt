@@ -1,0 +1,677 @@
+########################################################################################################################
+                                                CODE GENERATION
+########################################################################################################################
+
+Each class (.jack) file is compiles separately. Each class has 2 main modules, the class declaration and the subroutine
+declarations. Classes can be compiled one subroutine at a time. The code generator uses the syntax analyser to compile
+classes. The parser will have to be modified to generate code instead of .xml.
+
+----------------------------------------------HANDLING VARIABLES--------------------------------------------------------
+
+VM language doesn't have symbolic variables, so variables have to be mapped to the corresponding memory segment. Class
+level variables are field and static, subroutine level variables are argument and local.
+
+Variables have the following properties:
+
+name  -> identifier
+type  -> int/char/boolean/className
+kind  -> field/static/local/argument
+scope -> class level/subroutine level
+
+This can be managed using a symbol table:
+
+class level:
+
+class Point {
+    field int x,y;
+    static int pointCount;
+    ...}
+
+class level symbol table:
+name       | type  | kind   |#
+x          |int    |field   |0
+y          |int    |field   |1
+pointCount |int    |static  |0
+
+
+methods always have "this" as argument 0 as they operate on the class
+
+method int distance(Point other){
+    var int dx, dy;
+    ...}
+
+name       | type  | kind   |#
+this       |Point  |argument|0
+other      |Point  |argument|1
+dx         |int    |local   |0
+dy         |int    |local   |1
+
+class level and subroutine level symbol tables can be reset each time a new class/subroutine table is used.
+
+Handling variable declarations:
+Add variable and its properties to symbol table
+
+Handling variable usage:
+Check subroutine symbol table, then class symbol table or throw error if not found
+
+EXAMPLE:
+
+ley y = y + dy
+
+push this 1   // y  -> class variable
+push local 1  // dy -> local variable
+add
+pop this 1    // y  -> class variable
+
+HANDLING NESTED SCOPING
+some languages have unlimited scoping (variables can be scoped to statements like while loops etc.) this can be done
+with a linked list of symbol tables:
+
+Scope 2 table -> scope 1 table -> subroutine table -> class table
+scope 4 table -> scope 3 table --------^
+
+start at current scope and go up one level each time. (we don't need this for JACK)
+
+
+---------------------------------------------HANDLING EXPRESSIONS-------------------------------------------------------
+
+Expressions can be defined as term (op term)*
+
+infix notation:
+a * (b + c)
+human oriented
+
+prefix notation:
+* a + b c
+functional e.g. multiply(a, add(b, c))
+
+postfix notation:
+a b c + *
+stack language
+
+We want to translate infix (human input) to postfix (stack) notation
+
+Can use Parse Trees eg:
+
+        *
+       / \
+      a   +
+         / \
+        b   c
+
+Our parser generates a parse tree (see xml code)
+
+x + g(2,y,-z) * 5 =>
+x 2 y z - g 5 * +
+
+push x
+push 2
+push y
+push z
+unary -
+call g
+push 5
+call multiply
+add
+
+
+We must translate this to postfix notation. We can do this via depth first search OR generate it on the fly without a
+parse tree using:
+
+codeWrite(exp):
+1) if exp is a number n -> push n
+
+2) if exp is a var -> push var
+
+3) if exp is exp1 op exp2:
+    codeWrite(exp1)
+    codeWrite(exp2)
+    push op
+
+4) if exp is op exp:
+    codeWrite(exp)
+    push op
+
+5) if exp is f(exp1, exp2,...):
+    codeWrite(exp1)
+    codeWrite(exp2)
+    ...
+    call f
+
+
+codeWrite(x + g(2,y,-z) * 5)
+    codeWrite(x)
+        push x
+    codeWrite(g(2,y,-z) * 5)
+        codeWrite(g(2,y,-z))
+            push 2
+            push y
+            codeWrite(-z)
+                push z
+                neg
+        push 5
+        multiply
+    add
+
+
+FROM PARSING TO CODE GENERATION
+xml generated is irrelevant, the part that generates xml code must be replaced with code to generate VM code.
+
+The Jack language does not have operator priority:
+3 + 5 * 7 = 56
+3 + (5 * 7) = 38
+
+parentheses can be used to enforce operator priority
+
+How to implement with current infrastructure?
+
+HOW PARSER WOULD WRITE
+x + g(2,y,-z) * 5
+
+compileExpression()                         // called from parent
+    compileTerm()                           // part of compileExpression
+        write keyword x                     // token is identified as a keyword, write x to .xml
+    write symbol +                          // next token is symbol, write to .xml and call compileTerm
+    compileTerm()                           // currentToken is a subroutine identifier
+        write identifier g                  // next token is expected '('
+        write symbol '('
+        compileExpressionList()
+            compileExpression()
+                write integerConstant 2
+            write symbol ','
+            compileExpression()
+                write Keyword y
+            write symbol ','
+            compileExpression()
+                write unaryOp '-'
+                write identifier z
+        write symbol ')'
+    write symbol '*'
+    compileTerm()
+        write integerConstant 5
+
+
+PSEUDOCODE
+
+compileExpression(){
+    compile term
+    advance
+
+    (if op -> store in arrayList
+    compileTerm()
+    repeat)
+
+    terms are all pushed
+    for symbol in list
+    write code for symbols in reverse order
+
+ex 1 + 2 * 3
+
+push 1
+store +
+push 2
+store *
+push 3
+write *
+write +
+
+
+
+---------------------------------------------HANDLING FLOW CONTROL------------------------------------------------------
+
+VMCode uses label, goto and if-goto commands
+
+
+
+IF ELSE:
+
+if (expression)
+    statements 1
+else
+    statements 2
+...
+             START
+              |
+          NOT expression
+           |              |
+          no             yes
+           |              |
+      statements1    statements2
+           |_______________|
+                   |
+                CONTINUE
+
+
+    compiled (expression)  // returns boolean
+    not                    // inverts boolean
+    if-goto L1             // goto L1 if NOT expression is true
+    compiled(statements1)  // do statements1
+    goto L2                // goto L2
+label L1
+    compiled(statements2)  // do statements2
+label L2                   // finish here
+
+L1 and L2 generated by compiler automatically. Labels must be unique
+
+
+
+
+WHILE:
+
+while (expression)
+    statements
+
+
+            START
+        --->----|
+        |    NOT expression -- yes -- CONTINUE
+        |            |
+        |            no
+        |            |
+        |         statements
+        |_______<____|
+
+
+label L1                  // anchor for expression
+    compiled(expression)  // do expression
+    not                   // negate expression NOT 'NEG' USE """NOT""" YOU FUCK
+    if-goto L2            // goto L2 if expression is false
+    statements
+    goto L1               // Loop
+label L2
+
+
+LABELS MUST BE UNIQUE, ESPECIALLY SINCE IF/WHILE STATEMENTS ARE FREQUENTLY NESTED
+
+########################################################################################################################
+------------------------------------------------HANDLING OBJECTS--------------------------------------------------------
+########################################################################################################################
+
+LOW LEVEL ASPECTS
+
+The compiler writes VMCode which is translated into assembly. VMCode uses a specific mapping of RAM. LCL and ARG
+segments are located on the stack. they use the LCL and ARG pointers.
+
+The HEAP holds the data of the objects and arrays that the computer seeks to manipulate. This is implemented with
+THIS and THAT segments, located on PTR 0 and 1.
+
+Suppose we want to access RAM[8000,8001,...]
+
+VMCommands                           Result
+
+push 8000
+pop pointer 0                        sets THIS to 8000
+
+push/pop this 0                      accesses RAM[8000]
+
+push/pop this i                      accesses RAM[8000 + i]
+
+This will be how we deal with object and array data
+
+
+----------------------------------------------OBJECTS: CONSTRUCTION-----------------------------------------------------
+
+big picture:
+
+some class{
+...
+var point p1;
+...
+let p1 = Point.new(2,3);
+...
+}
+
+Point class{
+...
+constructor Point new(...){}
+...
+}
+
+some class CALLS the Point class.
+
+var Point p1;            // initializes a variable p1 to the stack, with initial value 0
+let p1 = Point.new(2,3); // p1 has its 0 value replaced by the RAM address of its data in the heap
+
+more complicated:
+
+var Point p1, p2;
+var int d;
+
+// relevant subroutine symbol table is updated by the compiler, no code is generated. Local vars are 0 by default
+
+let p1 = Point.new(2,3);
+
+// call subroutine
+
+// push 2
+// push 3
+// call Point.new -> contract where constructor returns a memory address for a block of memory that stores class data
+// pop p1 -> address is now stored in p1
+
+let p2 = Point.new(3,4);
+
+
+-----------------------------------------------------CONSTRUCTORS-------------------------------------------------------
+
+
+arrange the creation of a new object
+initializes the object
+
+to do this they need access to the objects fields. It can do this by using the THIS segment. The constructor must first
+anchor the THIS segment on the objects data using pointer.
+
+class Point {
+field int x,y;
+static int pointCount;
+...
+// Up until here the compiler just makes a symbol table for the class
+
+    // The constructor must make rom on RAM to make the object
+    // in this case the memory block needs room for two words (x and y). This is provided by the OS alloc function,
+    // which gives a free chunk of RAM of the desired size
+constructor Point new(int ax,int ay){
+    // push 2
+    // call Memory.alloc 1 -> alloc has 1 arg and that is the 2 that was pushed
+    // pop pointer 0
+let x = ax;
+    // push arg 0
+    // this 0
+let y = ay;
+    // push arg 1
+    // pop this 1
+let pointCount = pointCount + 1;
+    // push static 0
+    // push 1
+    // add
+    // pop static 0
+return this;
+    // push pointer 0
+    // return
+    }
+
+}
+
+
+--------------------------------------------------MANIPULATING OBJECTS--------------------------------------------------
+
+
+some class{
+var Point p1, p2, p3;
+var int x, d;
+
+
+let d = p1.distance(p2); // distance method is called and with ultimately be translated into procedural language
+                         // procedural style: let d = distance(p1, p2);
+push p1                  // p1 here is the base address, assume calling method handles it
+push p2
+call distance
+
+}
+
+Point class{
+...
+field int x,y; // no code generated by compiler, just a symbol table
+...
+method int distance(Point other){
+var int dx, dy;
+    // compiler makes a symbol table with this(ARG 0), other(ARG 1), dx(LCL 0), and dy(LCL 1)
+    // current object is always arg 0
+    // push ARG 0
+    // pop pointer 0
+    // can now access this
+let dx = x - other.getx();
+    // method can access the ith field by looking at this i. method must first anchor this segment using pointer
+    // push THIS 0
+    // push ARG 1 -> calling a method so push the object whose method we are calling
+    // call Point.getx 1
+    // sub
+    // pop LCL 0
+let dy = y - other.gety();
+    // done similarly
+return Math.sqrt((dx*dx) + (dy*dy));
+    }
+}
+
+void methods return nothing:
+method void print(){...}
+
+symbol table just has THIS as it's ARG 0
+...
+push constant 0 and return it
+The stack has an unnecessary value on it so:
+pop temp 0 // compiler should always do this for void functions
+
+
+
+----------------------------------------------HANDLING ARRAYS-----------------------------------------------------------
+
+Constructing Arrays:
+
+var Array arr;          // arr is initialized to LCL 0.
+                        // No code generated, symbolTable updated to include array
+
+let arr = Array.new(5); // The following code is generated:
+
+push 5
+call Array.new()
+                        // LCL 0 now has a pointer to a free block of 5 addresses
+
+arrays are similar to objects and by convention
+THIS -> current object, set by popping to pointer 0
+THAT -> current array , set by popping to pointer 1
+
+arr[2] = 17;
+
+push arr      // base address, stored in stack/LCL
+push 2        // offset
+add
+pop pointer 1 // offset address now in THAT
+push 17
+pop that 0    // we almost never use any address other than 0
+
+Constant offsets also work like:
+push arr
+pop pointer 1
+push 17
+pop that 2
+
+but this doesn't work for cases like arr[x] = y; as x and y are not constant.
+
+arr[expression1] = expression2
+
+push arr
+push expression1
+add
+pop pointer 1
+push expression2
+pop that 0
+
+
+BUT:
+
+//a[i] = b[j]
+push a
+push i
+add
+pop pointer 1
+push b
+push j
+add
+pop pointer 1 // pointer 1 had been overwritten
+
+THE CORRECT WAY:
+
+push a
+push i
+add
+push b
+push j
+add           // stack now has RAM addresses of a[i] and b[j]
+pop pointer 1 // THAT points to b[j]
+push that 0   // b[j] now on stack
+pop temp 0    // temp holds value of b[j]
+pop pointer 1 // THAT points to a[i]
+push temp 0   // value of b[j] on stack
+pop that 0    // a[i] is now b[j]
+
+Generally:
+
+arr[expression1] = expression2
+
+push arr
+push value of expression1
+add
+push value of expression2
+pop temp 0
+pop pointer 1
+push temp 0
+pop that 0
+
+-----------------------------------------STANDARD MAPPING OVER VIRTUAL MACHINE------------------------------------------
+
+The jack compiler maps high level constructs onto virtual machine segments according to the standard mapping
+
+FILES AND SUBROUTINE MAPPING
+each file gets mapped to a .vm file and each subroutine gets mapped to a function command
+constructors and functions with n arguments are mapped to functions with n arguments
+methods with n arguments are mapped to functions with n+1 arguments, with ARG 0 being this
+
+constructor/method/function specifics are lost on translation
+
+VARIABLES MAPPING
+local vars -> LCL segment
+argument vars -> ARG segment
+static vars -> STATIC segment
+field vars -> THIS segment (these vars are specific to an instance of a class)
+
+ARRAYS MAPPING
+access to any array entry i (arr[i])
+set pointer 1 to arr + i
+access using this 0
+
+COMPILING SUBROUTINES
+when compiling methods, set ARG 0 to THIS. This allows this 0/1/.../n to access field vars
+when compiling constructors, constructor must allocate a memory block for the object to be constructed and set THIS to
+the base address. This base address must be returned, taken care of on the jack level (must write return this)
+when compiling void functions, function returns 0 and 0 is popped to temp 0.
+
+COMPILING SUBROUTINE CALLS
+compiler must push subroutine args onto stack. If subroutine is a method, push THIS before pushing args.
+
+COMPILING CONSTANTS
+null is mapped to 0
+false is mapped to 0
+true is mapped to -1 (push 1, neg)
+
+OS CLASSES AND SUBROUTINES
+8 classes, all OS classes must reside in the same directory as the .vm files
+multiplication/division is handled by Math.multiply()/divide()
+String constants use String.new(length)
+and are updated using String.appendChar(char) to populate chars
+Object construction uses Memory.alloc(size) and dealloc(object)
+
+
+########################################################################################################################
+                                             PROPOSED IMPLEMENTATION
+########################################################################################################################
+
+MODULES
+JackCompiler       // Main
+JackTokenizer      // Project 10
+SymbolTable        // Project 11
+VMWriter           // Project 11
+CompilationEngine  // Project 10/11
+
+Usage:
+input fileName/Directory, generate one .vm file per .jack file
+Creates a JackTokenizer for each input .jack file, then uses the SymbolTable, CompilationEngine and VMWriter.
+
+----------------------------------------------JACK TOKENIZER------------------------------------------------------------
+In Project 10
+
+----------------------------------------------SYMBOL TABLE--------------------------------------------------------------
+
+Used to keep track of variable scopes. Two symbol tables, one for class and one for subroutine. Each symbol table must
+add variables when they are first declared and keep track of their index.
+
+class Point{
+
+    field int x,y;         // field vars 0 and 1
+    static int pointCount; // static var 0
+
+    ...
+    method int distance(Point other){ // THIS is ALWAYS ARG 0, other in this case is ARG 1
+        var int dx, dy; // local vars 0 and 1
+        let ...
+        let ...
+        return ...
+    }
+    ...
+}
+
+The SCOPE of static and field variables is the CLASS in which they're defined
+
+CLASS LEVEL SYMBOL TABLE
+______________________________
+name       |type | kind   | # |
+x          | int | field  | 0 |
+y          | int | field  | 1 |
+pointCount | int | static | 0 |
+
+the SCOPE of local and argument variables is the SUBROUTINE in which they're defined
+
+SUBROUTINE LEVEL SYMBOL TABLE
+________________________________
+name       |type   | kind   | # |
+this       | Point | arg    | 0 |
+other      | Point | arg    | 1 |
+dx         |  int  | local  | 0 |
+dy         |  int  | local  | 1 |
+
+the compiler never needs more than 2 symbol tables. The class level symbol table is reset each class, and similarly
+the subroutine table is reset with each new subroutine
+
+SYMBOL TABLE API
+
+Symbol Table should extend the handling of identifiers:
+output the category (var, argument, static, field, class, subroutine) of the identifier
+output the running index if the category is var, static, field, argument
+output whether the identifier is being defined or used
+
+Constructor -> creates a new symbolTable
+startSubroutine -> starts a new subroutine scope
+define takes args name (string), type (String), kind (enum) -> defines a new identifier of the given name, kind, and type
+varCount takes arg kind (enum) -> returns the number of vars of a given kind in current scope
+kindOf, typeOf, indexOf takes arg name (String) -> returns info on selected identifier
+
+these can be implemented with hash tables. Each symbol not found in the symbol tables can be assumed to be a subroutine
+or class name (when writing error free code).
+
+TEST THIS BY USING THE SYMBOL TABLE TO EXTEND THE XML FROM PROJECT 10.
+
+TEST EACH PROVIDED TEST PROGRAM
+
+---------------------------------------------------VM WRITER------------------------------------------------------------
+API:
+Routine
+writePush/Pop/Arithmetic/etc.
+---------------------------------------------------COMPILATION ENGINE---------------------------------------------------
+
+gets input from JackTokenizer and outputs using VMWriter. Syntax analyzer simply acknowledges identifiers,
+the symbolTable will handle actual names .
+
+
+########################################################################################################################
+                                                        TEST PROGRAMS
+########################################################################################################################
+
+SEVEN
+-simple
+-do, return
+-expression with constants
+-void functions
+
+DECIMAL TO BINARY
+- loops
+    needed to implement pushing booleans (-1 for true, 0 for false)
+    scoped labels

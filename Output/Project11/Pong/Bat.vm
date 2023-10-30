@@ -1,0 +1,269 @@
+/**
+ * A graphical Pong bat. 
+ * Displayed as a filled horizontal rectangle that has 
+ * a screen location, a width and a height.
+ * Has methods for drawing, erasing, moving left and right, 
+ * and changing its width (to make the hitting action more challenging).
+ * This class should have been called "paddle", following the 
+ * standard Pong terminology. But, unaware of this terminology,
+ * we called it "bat", and then decided to stick to it. 
+ *//** Constructs a new bat with the given location and width. *//*
+FIELD  int x         -> this     0
+FIELD  int y         -> this     1
+FIELD  int width     -> this     2
+FIELD  int height    -> this     3
+FIELD  int direction -> this     4
+*/
+    
+function Bat.new 0
+/*
+ARG    int Ax      -> argument 0
+ARG    int Ay      -> argument 1
+ARG    int Awidth  -> argument 2
+ARG    int Aheight -> argument 3
+*/
+    push constant 5
+    call Memory.alloc 1
+    pop pointer 0
+    push argument 0
+    pop this 0
+    push argument 1
+    pop this 1
+    push argument 2
+    pop this 2
+    push argument 3
+    pop this 3
+    push constant 2
+    pop this 4
+    push pointer 0
+    call Bat.show 1
+    pop temp 0
+    push pointer 0
+    return
+/** Deallocates the object's memory. */    
+function Bat.dispose 0
+/*
+ARG    Bat this -> argument 0
+*/
+    push argument 0
+    pop pointer 0
+    push pointer 0
+    call Memory.deAlloc 1
+    pop temp 0
+    push constant 0
+    return
+/** Shows the bat. */    
+function Bat.show 0
+/*
+ARG    Bat this -> argument 0
+*/
+    push argument 0
+    pop pointer 0
+    push constant 1
+    neg
+    call Screen.setColor 1
+    pop temp 0
+    push pointer 0
+    call Bat.draw 1
+    pop temp 0
+    push constant 0
+    return
+/** Hides the bat. */    
+function Bat.hide 0
+/*
+ARG    Bat this -> argument 0
+*/
+    push argument 0
+    pop pointer 0
+    push constant 0
+    call Screen.setColor 1
+    pop temp 0
+    push pointer 0
+    call Bat.draw 1
+    pop temp 0
+    push constant 0
+    return
+/** Draws the bat. */    
+function Bat.draw 0
+/*
+ARG    Bat this -> argument 0
+*/
+    push argument 0
+    pop pointer 0
+    push this 0
+    push this 1
+    push this 0
+    push this 2
+    add
+    push this 1
+    push this 3
+    add
+    call Screen.drawRectangle 4
+    pop temp 0
+    push constant 0
+    return
+/** Sets the bat's direction (0=stop, 1=left, 2=right). */    
+function Bat.setDirection 0
+/*
+ARG    Bat this       -> argument 0
+ARG    int Adirection -> argument 1
+*/
+    push argument 0
+    pop pointer 0
+    push argument 1
+    pop this 4
+    push constant 0
+    return
+/** Returns the bat's left edge. */    
+function Bat.getLeft 0
+/*
+ARG    Bat this -> argument 0
+*/
+    push argument 0
+    pop pointer 0
+    push this 0
+    return
+/** Returns the bat's right edge. */    
+function Bat.getRight 0
+/*
+ARG    Bat this -> argument 0
+*/
+    push argument 0
+    pop pointer 0
+    push this 0
+    push this 2
+    add
+    return
+/** Sets the bat's width. */    
+function Bat.setWidth 0
+/*
+ARG    Bat this   -> argument 0
+ARG    int Awidth -> argument 1
+*/
+    push argument 0
+    pop pointer 0
+    push pointer 0
+    call Bat.hide 1
+    pop temp 0
+    push argument 1
+    pop this 2
+    push pointer 0
+    call Bat.show 1
+    pop temp 0
+    push constant 0
+    return
+/** Moves the bat one step in the bat's direction. */    
+function Bat.move 0
+/*
+ARG    Bat this -> argument 0
+*/
+    push argument 0
+    pop pointer 0
+    push this 4
+    push constant 1
+    eq
+    not
+    if-goto Bat.move_FALSE_0
+    push this 0
+    push constant 4
+    sub
+    pop this 0
+    push this 0
+    push constant 0
+    lt
+    not
+    if-goto Bat.move_FALSE_1
+    push constant 0
+    pop this 0
+    goto Bat.move_TRUE_1
+label Bat.move_FALSE_1
+label Bat.move_TRUE_1
+    push constant 0
+    call Screen.setColor 1
+    pop temp 0
+    push this 0
+    push this 2
+    add
+    push constant 1
+    add
+    push this 1
+    push this 0
+    push this 2
+    add
+    push constant 4
+    add
+    push this 1
+    push this 3
+    add
+    call Screen.drawRectangle 4
+    pop temp 0
+    push constant 1
+    neg
+    call Screen.setColor 1
+    pop temp 0
+    push this 0
+    push this 1
+    push this 0
+    push constant 3
+    add
+    push this 1
+    push this 3
+    add
+    call Screen.drawRectangle 4
+    pop temp 0
+    goto Bat.move_TRUE_0
+label Bat.move_FALSE_0
+    push this 0
+    push constant 4
+    add
+    pop this 0
+    push this 0
+    push this 2
+    add
+    push constant 511
+    gt
+    not
+    if-goto Bat.move_FALSE_2
+    push constant 511
+    push this 2
+    sub
+    pop this 0
+    goto Bat.move_TRUE_2
+label Bat.move_FALSE_2
+label Bat.move_TRUE_2
+    push constant 0
+    call Screen.setColor 1
+    pop temp 0
+    push this 0
+    push constant 4
+    sub
+    push this 1
+    push this 0
+    push constant 1
+    sub
+    push this 1
+    push this 3
+    add
+    call Screen.drawRectangle 4
+    pop temp 0
+    push constant 1
+    neg
+    call Screen.setColor 1
+    pop temp 0
+    push this 0
+    push this 2
+    add
+    push constant 3
+    sub
+    push this 1
+    push this 0
+    push this 2
+    add
+    push this 1
+    push this 3
+    add
+    call Screen.drawRectangle 4
+    pop temp 0
+label Bat.move_TRUE_0
+    push constant 0
+    return

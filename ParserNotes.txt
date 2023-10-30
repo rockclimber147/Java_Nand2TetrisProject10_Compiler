@@ -1,0 +1,315 @@
+
+VMCode = Compiler(Jack Code)
+
+Compiler => (Syntax Analyzer + Code Generator)
+Syntax Analyzer => (Tokenizer + Parser)
+
+########################################################################################################################
+                                              THE TOKENIZER
+########################################################################################################################
+
+Generates a stream of tokens from an input file.
+Tokens are strings of chars that have a meaning. Different languages have different tokens.
+
+Jack has:
+
+keyword: 'class' | 'constructor' | 'function' |
+         'method' | 'field' | 'static' | 'var' | 'int' |
+         'char' | 'boolean' | 'void' | 'true' | 'false' |
+         'null' | 'this' | 'let' | 'do' | 'if' | 'else' |
+         'while' | 'return'
+
+symbol: '{' | '}' | '(' | ')' | '[' | ']' | '. ' | ', ' | '; ' | '+' | '-' | '*' |
+        '/' | '&' | '|' | '<' | '>' | '=' | '~'
+
+integerConstant (number from 0 to 32767)
+
+StringConstant (series of Unicode chars not including newline or double quotes)
+
+identifiers (sequence of letters, digits, and underscores not starting with a digit)
+
+The tokenizer will supply the current token's value and type based on the input from the compiler
+It will allow the input to be viewed as a stream of tokens.
+
+SAMPLE INPUT:
+
+if (x < 0) {
+// gets the sign
+let sign = "negative";
+}
+
+SAMPLE OUTPUT:
+
+<keyword>     if         </keyword>
+<symbol>      (          </symbol>
+<identifier>  x          </identifier>
+<symbol>      <          </symbol>
+<intConst>    0          </intConst>
+<symbol>      )          </symbol>
+<symbol>      {          </symbol>
+<keyword>     let        </keyword>
+<identifier>  sign       </identifier>
+<symbol>      =          </symbol>
+<stringConst> negative   </stringConst>
+<symbol>      ;          </symbol>
+<symbol>      }          </symbol>
+
+After tokenization, the source code is no longer necessary
+
+########################################################################################################################
+                                                      THE PARSER
+########################################################################################################################
+
+Valid tokens can be ordered incorrectly. Grammar rules are what dictate how tokens can be arranged
+Each grammar rule consists of a template name on the left hand side, and its composition on the right hand side.
+Terminal rules have a right hand side with only constants
+
+JACK GRAMMAR (Subset of if, while and let statements)
+
+NON TERMINAL RULES:
+
+statement:       letStatement | ifStatement | whileStatement
+statements:      statement*                                        // '*' denotes zero or more of
+letStatement:    'let' varName '=' expression ';’
+ifStatement:     'if' '(' expression ')' '{' statements '}'
+whileStatement:  'while' '(' expression ')' '{' statements '}'
+expression:      term (op term)?                                   // '?' denotes appears zero or one times
+
+TERMINAL RULES:
+
+term:      varName | constant
+varName:   a string not beginning with a digit
+constant:  a decimal number
+op:        '+' | '-' | '=' | '>' | '<'
+
+----------------------------------------------------PARSE TREES---------------------------------------------------------
+
+Parse trees show the grammatical structure of the input
+
+        EXAMPLE:
+
+                                        x = x + 1
+
+                                    expression (x=x+1)
+                                   /       |        \
+                             term(x)    op(=)    expression(x+1)
+                                                    /    |      \
+                                            varName(x)  op(+) constant(1)
+
+in XML:
+
+<expression> // x = x + 1
+    <term>
+        <identifier> x </identifier>
+    </term>
+    <symbol> = </symbol>
+    <expression>  // x + 1
+        <term>
+            <identifier> x </identifier>
+        </term>
+        <symbol> + </symbol>
+        <term>
+            <integerConstant> 1 </integerConstant>
+        </term>
+    </expression>
+</expression>
+
+----------------------------------------------------PARSER LOGIC--------------------------------------------------------
+
+The logic used by the Parser will involve a recursive set of methods, one for almost each non-terminal rule.
+
+EXAMPLE:
+
+check() -> checks if current token is what's input
+advance() -> make next token current token
+
+compileWhileStatement(){
+// whileStatement: 'while' '(' expression ')' '{' statements '}'
+check("while")
+advance
+check("(")
+advance
+calls compileExpression()
+    // Expression: term (op term)?
+    calls compileTerm()
+        check(varName|constant)
+        advance()
+    while current token == op
+        check("op")
+        advance()
+        call compileTerm()
+            check(varName|constant)
+            advance()
+check(")")
+advance
+check("{")
+advance
+calls compileStatements()
+    // calls relevant if/while/let function
+check("}")
+advance
+}
+
+LL grammar can be parsed by a recursive descent parser without backtracking.
+LL(k) grammar needs to look at most k steps ahead
+so far we have used LL(1)
+
+----------------------------------------------------JACK GRAMMAR--------------------------------------------------------
+
+grammatical terms:
+
+BOLD 'xxx' -> tokens that appear verbatim (terminal)
+reg. xxx -> names of non-terminals
+()       -> used for grouping
+x | y    -> x OR y appear
+x y      -> first x, then y
+x?       -> x appears 0 or 1 times
+x*       -> x appears 0 or more times
+
+LEXICAL ELEMENTS:
+
+keywords
+symbols
+integerConstants
+stringConstants
+identifiers
+
+STRUCTURE
+
+Each Jack program is composed of classes, each having their own file and separate compilation.
+
+class:           'class' className '{'classVarDec* subroutineDec* '}'
+
+classVarDec:     ('static'|'field') type varName (',' varName)* ';'
+type:            'int'|'char'|'boolean'|className  // 3 primitive types and the name of the class
+
+subroutineDec:   ('constructor'|'function'|'method') ('void'|type) subroutineName '(' parameterList ')' subroutineBody
+parameterList    ((type varName) (',' type varName)*)?
+subroutineBody:  '{' varDec statements '}'
+
+varDec:          'var' type varName (','varName)*';'
+className, subroutineName, varName: identifier
+
+
+
+-------------------------------------------THE JACK ANALYZER------------------------------------------------------------
+
+The analyzer outputs the code source in a structured way (in this case XML)
+
+processing terminal rules:
+
+<terminalElement>
+    xxx
+</terminalElement>
+
+non terminal rules:
+
+<nonTerminal>
+    recursive output for the non-terminal rule
+</nonTerminal>
+
+"shallow rules" e.g. varNames are not terminal but are not marked up as their body is just one other rule
+
+
+---------------------------------------------PROPOSED IMPLEMENTATION----------------------------------------------------
+
+usage of JackAnalyzer:
+
+input >> JackAnalyzer input
+
+where input is a .jack file or a directory of .jack files
+and output is a single .xml file or an .xml file for each jack file in the directory
+
+JackAnalyzer uses the services of a JackTokenizer (handles lexical elements)
+and a CompilationEngine, which uses the services of the Tokenizer to only have to deal with the lexical elements
+
+class JackTokenizer(){
+constructor -> receives input fileName
+hadMoreTokens() -> boolean
+advance() -> only advances when there are more tokens
+tokenType()
+
+symbol()
+identifier()
+intVal()
+stringVal()  -> all return token values
+}
+
+tokenizer must be smart enough to distinguish tokens not separated by white space
+e.g. functionName() -> 'functionName' + '(' + ')'
+
+class compilationEngine(){ // receives input from tokenizer
+
+compile[if,while,...]Statement() -> recursively writes to the file the tokens of the corresponding rule
+
+
+}
+
+########################################################################################################################
+                                                   JACK GRAMMAR
+########################################################################################################################
+
+PROGRAM STRUCTURE
+
+          class:  'class' className '{' classVarDec* subroutineDec* '}'
+    classVarDec:  ('static'|'field') type varName (',' varName)* ';'
+           type:  'int'|'char'|'boolean'|className
+  subroutineDec:  ('constructor'|'function'|'method') ('void'|type) subroutineName '(' parameterList ')' subroutineBody
+  parameterList:  ((type varName) (',' type varName)*)?
+ subroutineBody:  '{' varDec* statements '}'
+         varDec:  'var' type varName (',' varName)* ';'
+      className:  identifier
+        varName:  identifier
+ subroutineName:  identifier
+
+STATEMENTS
+
+     statements:  statement*
+      statement:  letStatement | ifStatement | whileStatement | doStatement | returnStatement
+   letStatement:  'let' varName ('[' expression ']')? '=' expression ';'
+    ifStatement:  'if' '(' expression ')' '{' statements '}' ( 'else' '{' statements' '}')?
+ whileStatement:  'while' '(' expression ')' '{' statements '}'
+    doStatement:  'do' subroutineCall ';'
+returnStatement:  'return' expression? ';'
+
+EXPRESSIONS
+
+     expression:  term (op term)*
+           term:  integerConstant | stringConstant | keywordConstant | varName | varName '[' expression ']' |
+                  subroutineCall | '(' expression ')' | unaryOp term
+ subroutineCall:  subroutineName '(' expressionList ')' | (className|varName) '.' subroutineName '(' expressionList ')'
+ expressionList:  ( expression (',' expression)*)?
+
+ -------------------------------------------------------SUBROUTINES-----------------------------------------------------
+
+          compileClass:
+    compileClassVarDec:
+     compileSubroutine:
+  compileParameterList:
+ compileSubroutineBody:
+         compileVarDec:
+     compileStatements:  doesn't handle curly brackets
+            compileLet:
+             compileIf:  can contain else
+          compileWhile:
+         compileReturn:
+     compileExpression:
+ compileExpressionList:  expressionList can be empty but RETURNS THE NUMBER OF EXPRESSIONS IN THE LIST
+           compileTerm:  if current token is an identifier, must look ahead to resolve it into a
+                         variable/arrayEntry/subroutineCall
+
+########################################################################################################################
+                                      COMPLETED PARSER PSEUDOCODE FOR PART 2
+########################################################################################################################
+
+JackTokenizer.advance() -> loads the next token, deletes current.
+
+JackTokenizer.identifier/keyWord/etc. -> returns the token if the tokenType corresponds with the calling function.
+Error otherwise
+
+JackTokenizer.getType() -> returns current tokenType
+
+CompilationEngine.eatTerminalX() -> writes the token of type X to the .xml and advances the tokenizer
+
+CompilationEngine.compileX() -> recursively parses nonTerminal X, writing to .xml
+

@@ -1,0 +1,521 @@
+/**
+ * A graphical ball. Characterized by a screen location and distance of 
+ * last destination. Has methods for drawing, erasing and moving on the screen.
+ * The ball is displayed as a filled, 6-by-6 pixles rectangle. 
+ *//** Constructs a new ball with the given initial location and wall locations. *//*
+FIELD  int     x          -> this     0
+FIELD  int     y          -> this     1
+FIELD  int     lengthx    -> this     2
+FIELD  int     lengthy    -> this     3
+FIELD  int     d          -> this     4
+FIELD  int     straightD  -> this     5
+FIELD  int     diagonalD  -> this     6
+FIELD  boolean invert     -> this     7
+FIELD  boolean positivex  -> this     8
+FIELD  boolean positivey  -> this     9
+FIELD  int     leftWall   -> this     10
+FIELD  int     rightWall  -> this     11
+FIELD  int     topWall    -> this     12
+FIELD  int     bottomWall -> this     13
+FIELD  int     wall       -> this     14
+*/
+    
+function Ball.new 0
+/*
+ARG    int Ax          -> argument 0
+ARG    int Ay          -> argument 1
+ARG    int AleftWall   -> argument 2
+ARG    int ArightWall  -> argument 3
+ARG    int AtopWall    -> argument 4
+ARG    int AbottomWall -> argument 5
+*/
+    push constant 15
+    call Memory.alloc 1
+    pop pointer 0
+    push argument 0
+    pop this 0
+    push argument 1
+    pop this 1
+    push argument 2
+    pop this 10
+    push argument 3
+    push constant 6
+    sub
+    pop this 11
+    push argument 4
+    pop this 12
+    push argument 5
+    push constant 6
+    sub
+    pop this 13
+    push constant 0
+    pop this 14
+    push pointer 0
+    call Ball.show 1
+    pop temp 0
+    push pointer 0
+    return
+/** Deallocates the Ball's memory. */    
+function Ball.dispose 0
+/*
+ARG    Ball this -> argument 0
+*/
+    push argument 0
+    pop pointer 0
+    push pointer 0
+    call Memory.deAlloc 1
+    pop temp 0
+    push constant 0
+    return
+/** Shows the ball. */    
+function Ball.show 0
+/*
+ARG    Ball this -> argument 0
+*/
+    push argument 0
+    pop pointer 0
+    push constant 1
+    neg
+    call Screen.setColor 1
+    pop temp 0
+    push pointer 0
+    call Ball.draw 1
+    pop temp 0
+    push constant 0
+    return
+/** Hides the ball. */    
+function Ball.hide 0
+/*
+ARG    Ball this -> argument 0
+*/
+    push argument 0
+    pop pointer 0
+    push constant 0
+    call Screen.setColor 1
+    pop temp 0
+    push pointer 0
+    call Ball.draw 1
+    pop temp 0
+    push constant 0
+    return
+/** Draws the ball. */    
+function Ball.draw 0
+/*
+ARG    Ball this -> argument 0
+*/
+    push argument 0
+    pop pointer 0
+    push this 0
+    push this 1
+    push this 0
+    push constant 5
+    add
+    push this 1
+    push constant 5
+    add
+    call Screen.drawRectangle 4
+    pop temp 0
+    push constant 0
+    return
+/** Returns the ball's left edge. */    
+function Ball.getLeft 0
+/*
+ARG    Ball this -> argument 0
+*/
+    push argument 0
+    pop pointer 0
+    push this 0
+    return
+/** Returns the ball's right edge. */    
+function Ball.getRight 0
+/*
+ARG    Ball this -> argument 0
+*/
+    push argument 0
+    pop pointer 0
+    push this 0
+    push constant 5
+    add
+    return
+/** Computes and sets the ball's destination. */    
+function Ball.setDestination 3
+/*
+ARG    Ball this  -> argument 0
+ARG    int  destx -> argument 1
+ARG    int  desty -> argument 2
+VAR    int  dx    -> local    0
+VAR    int  dy    -> local    1
+VAR    int  temp  -> local    2
+*/
+    push argument 0
+    pop pointer 0
+    push argument 1
+    push this 0
+    sub
+    pop this 2
+    push argument 2
+    push this 1
+    sub
+    pop this 3
+    push this 2
+    call Math.abs 1
+    pop local 0
+    push this 3
+    call Math.abs 1
+    pop local 1
+    push local 0
+    push local 1
+    lt
+    pop this 7
+    push this 7
+    not
+    if-goto Ball.setDestination_FALSE_0
+    push local 0
+    pop local 2
+    push local 1
+    pop local 0
+    push local 2
+    pop local 1
+    push this 1
+    push argument 2
+    lt
+    pop this 8
+    push this 0
+    push argument 1
+    lt
+    pop this 9
+    goto Ball.setDestination_TRUE_0
+label Ball.setDestination_FALSE_0
+    push this 0
+    push argument 1
+    lt
+    pop this 8
+    push this 1
+    push argument 2
+    lt
+    pop this 9
+label Ball.setDestination_TRUE_0
+    push constant 2
+    push local 1
+    call Math.multiply 2
+    push local 0
+    sub
+    pop this 4
+    push constant 2
+    push local 1
+    call Math.multiply 2
+    pop this 5
+    push constant 2
+    push local 1
+    push local 0
+    sub
+    call Math.multiply 2
+    pop this 6
+    push constant 0
+    return
+/**
+     * Moves the ball one unit towards its destination.
+     * If the ball has reached a wall, returns 0.
+     * Else, returns a value according to the wall:
+     * 1 (left wall), 2 (right wall), 3 (top wall), 4 (bottom wall).
+     */    
+function Ball.move 0
+/*
+ARG    Ball this -> argument 0
+*/
+    push argument 0
+    pop pointer 0
+    push pointer 0
+    call Ball.hide 1
+    pop temp 0
+    push this 4
+    push constant 0
+    lt
+    not
+    if-goto Ball.move_FALSE_0
+    push this 4
+    push this 5
+    add
+    pop this 4
+    goto Ball.move_TRUE_0
+label Ball.move_FALSE_0
+    push this 4
+    push this 6
+    add
+    pop this 4
+    push this 9
+    not
+    if-goto Ball.move_FALSE_1
+    push this 7
+    not
+    if-goto Ball.move_FALSE_2
+    push this 0
+    push constant 4
+    add
+    pop this 0
+    goto Ball.move_TRUE_2
+label Ball.move_FALSE_2
+    push this 1
+    push constant 4
+    add
+    pop this 1
+label Ball.move_TRUE_2
+    goto Ball.move_TRUE_1
+label Ball.move_FALSE_1
+    push this 7
+    not
+    if-goto Ball.move_FALSE_3
+    push this 0
+    push constant 4
+    sub
+    pop this 0
+    goto Ball.move_TRUE_3
+label Ball.move_FALSE_3
+    push this 1
+    push constant 4
+    sub
+    pop this 1
+label Ball.move_TRUE_3
+label Ball.move_TRUE_1
+label Ball.move_TRUE_0
+    push this 8
+    not
+    if-goto Ball.move_FALSE_4
+    push this 7
+    not
+    if-goto Ball.move_FALSE_5
+    push this 1
+    push constant 4
+    add
+    pop this 1
+    goto Ball.move_TRUE_5
+label Ball.move_FALSE_5
+    push this 0
+    push constant 4
+    add
+    pop this 0
+label Ball.move_TRUE_5
+    goto Ball.move_TRUE_4
+label Ball.move_FALSE_4
+    push this 7
+    not
+    if-goto Ball.move_FALSE_6
+    push this 1
+    push constant 4
+    sub
+    pop this 1
+    goto Ball.move_TRUE_6
+label Ball.move_FALSE_6
+    push this 0
+    push constant 4
+    sub
+    pop this 0
+label Ball.move_TRUE_6
+label Ball.move_TRUE_4
+    push this 0
+    push this 10
+    gt
+    not
+    not
+    if-goto Ball.move_FALSE_7
+    push constant 1
+    pop this 14
+    push this 10
+    pop this 0
+    goto Ball.move_TRUE_7
+label Ball.move_FALSE_7
+label Ball.move_TRUE_7
+    push this 0
+    push this 11
+    lt
+    not
+    not
+    if-goto Ball.move_FALSE_8
+    push constant 2
+    pop this 14
+    push this 11
+    pop this 0
+    goto Ball.move_TRUE_8
+label Ball.move_FALSE_8
+label Ball.move_TRUE_8
+    push this 1
+    push this 12
+    gt
+    not
+    not
+    if-goto Ball.move_FALSE_9
+    push constant 3
+    pop this 14
+    push this 12
+    pop this 1
+    goto Ball.move_TRUE_9
+label Ball.move_FALSE_9
+label Ball.move_TRUE_9
+    push this 1
+    push this 13
+    lt
+    not
+    not
+    if-goto Ball.move_FALSE_10
+    push constant 4
+    pop this 14
+    push this 13
+    pop this 1
+    goto Ball.move_TRUE_10
+label Ball.move_FALSE_10
+label Ball.move_TRUE_10
+    push pointer 0
+    call Ball.show 1
+    pop temp 0
+    push this 14
+    return
+/**
+     * Bounces off the current wall: sets the new destination
+     * of the ball according to the ball's angle and the given
+     * bouncing direction (-1/0/1=left/center/right or up/center/down).
+     */    
+function Ball.bounce 5
+/*
+ARG    Ball this              -> argument 0
+ARG    int  bouncingDirection -> argument 1
+VAR    int  newx              -> local    0
+VAR    int  newy              -> local    1
+VAR    int  divLengthx        -> local    2
+VAR    int  divLengthy        -> local    3
+VAR    int  factor            -> local    4
+*/
+    push argument 0
+    pop pointer 0
+    push this 2
+    push constant 10
+    call Math.divide 2
+    pop local 2
+    push this 3
+    push constant 10
+    call Math.divide 2
+    pop local 3
+    push argument 1
+    push constant 0
+    eq
+    not
+    if-goto Ball.bounce_FALSE_0
+    push constant 10
+    pop local 4
+    goto Ball.bounce_TRUE_0
+label Ball.bounce_FALSE_0
+    push this 2
+    push constant 0
+    lt
+    not
+    push argument 1
+    push constant 1
+    eq
+    and
+    push this 2
+    push constant 0
+    lt
+    push argument 1
+    push constant 1
+    neg
+    eq
+    and
+    or
+    not
+    if-goto Ball.bounce_FALSE_1
+    push constant 20
+    pop local 4
+    goto Ball.bounce_TRUE_1
+label Ball.bounce_FALSE_1
+    push constant 5
+    pop local 4
+label Ball.bounce_TRUE_1
+label Ball.bounce_TRUE_0
+    push this 14
+    push constant 1
+    eq
+    not
+    if-goto Ball.bounce_FALSE_2
+    push constant 506
+    pop local 0
+    push local 3
+    push constant 50
+    neg
+    call Math.multiply 2
+    push local 2
+    call Math.divide 2
+    pop local 1
+    push this 1
+    push local 1
+    push local 4
+    call Math.multiply 2
+    add
+    pop local 1
+    goto Ball.bounce_TRUE_2
+label Ball.bounce_FALSE_2
+    push this 14
+    push constant 2
+    eq
+    not
+    if-goto Ball.bounce_FALSE_3
+    push constant 0
+    pop local 0
+    push local 3
+    push constant 50
+    call Math.multiply 2
+    push local 2
+    call Math.divide 2
+    pop local 1
+    push this 1
+    push local 1
+    push local 4
+    call Math.multiply 2
+    add
+    pop local 1
+    goto Ball.bounce_TRUE_3
+label Ball.bounce_FALSE_3
+    push this 14
+    push constant 3
+    eq
+    not
+    if-goto Ball.bounce_FALSE_4
+    push constant 250
+    pop local 1
+    push local 2
+    push constant 25
+    neg
+    call Math.multiply 2
+    push local 3
+    call Math.divide 2
+    pop local 0
+    push this 0
+    push local 0
+    push local 4
+    call Math.multiply 2
+    add
+    pop local 0
+    goto Ball.bounce_TRUE_4
+label Ball.bounce_FALSE_4
+    push constant 0
+    pop local 1
+    push local 2
+    push constant 25
+    call Math.multiply 2
+    push local 3
+    call Math.divide 2
+    pop local 0
+    push this 0
+    push local 0
+    push local 4
+    call Math.multiply 2
+    add
+    pop local 0
+label Ball.bounce_TRUE_4
+label Ball.bounce_TRUE_3
+label Ball.bounce_TRUE_2
+    push pointer 0
+    push local 0
+    push local 1
+    call Ball.setDestination 3
+    pop temp 0
+    push constant 0
+    return
